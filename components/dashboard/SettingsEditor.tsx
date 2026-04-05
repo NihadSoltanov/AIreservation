@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Building2, Globe, Bell, Shield, Puzzle, Users, ChevronDown } from "lucide-react"
 import WhatsAppEmbeddedSignup from "@/components/dashboard/WhatsAppEmbeddedSignup"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -49,6 +49,34 @@ export default function SettingsEditor({
   const [waSaved, setWaSaved] = useState(false)
   const [waError, setWaError] = useState("")
   const [showManual, setShowManual] = useState(false)
+
+  // Read OAuth callback result from URL params (set by /api/meta/callback redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const waSuccessParam = params.get("wa_success")
+    const waErrorParam = params.get("wa_error")
+    const phoneParam = params.get("phone")
+
+    if (waSuccessParam === "1") {
+      if (phoneParam) setWaPhoneId(phoneParam)
+      setWaConnected(true)
+      setWaSaved(true)
+      setActiveSection("channels")
+      setTimeout(() => setWaSaved(false), 5000)
+      // Clean up URL without reloading
+      window.history.replaceState({}, "", "/dashboard/settings")
+    } else if (waErrorParam) {
+      const messages: Record<string, string> = {
+        cancelled: "Bağlantı iptal edildi.",
+        token_failed: "Bağlantı başarısız: token alınamadı.",
+        config_missing: "Sunucu yapılandırması eksik.",
+        no_org: "Organizasyon bulunamadı.",
+      }
+      setWaError(messages[waErrorParam] ?? `Bağlantı hatası: ${waErrorParam}`)
+      setActiveSection("channels")
+      window.history.replaceState({}, "", "/dashboard/settings")
+    }
+  }, [])
 
   const saveWhatsApp = async () => {
     if (!waToken || !waPhoneId) {
