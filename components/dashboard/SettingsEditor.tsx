@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Building2, Globe, Bell, Shield, Puzzle, Users } from "lucide-react"
+import { Building2, Globe, Bell, Shield, Puzzle, Users, ChevronDown } from "lucide-react"
+import WhatsAppEmbeddedSignup from "@/components/dashboard/WhatsAppEmbeddedSignup"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +48,7 @@ export default function SettingsEditor({
   const [waSaving, setWaSaving] = useState(false)
   const [waSaved, setWaSaved] = useState(false)
   const [waError, setWaError] = useState("")
+  const [showManual, setShowManual] = useState(false)
 
   const saveWhatsApp = async () => {
     if (!waToken || !waPhoneId) {
@@ -168,40 +170,66 @@ export default function SettingsEditor({
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-4">
                   {waConnected && (
                     <div className="flex items-center gap-2 p-3 rounded-lg text-sm" style={{ background: ac + "12", color: ac }}>
-                      <span className="font-medium">✓ Phone Number ID:</span>
+                      <span className="font-medium">✓ Bağlandı:</span>
                       <span className="font-mono">{waPhoneId}</span>
                     </div>
                   )}
-                  <div className="space-y-1.5">
-                    <Label>Meta Access Token</Label>
-                    <Input
-                      type="password"
-                      placeholder="Paste your permanent token from Meta Developer Portal"
-                      value={waToken}
-                      onChange={e => setWaToken(e.target.value)}
+
+                  {/* One-click Embedded Signup */}
+                  <div className="p-4 rounded-xl border border-[var(--border)] space-y-2" style={{ background: "#f0fdf4" }}>
+                    <p className="text-sm font-semibold text-gray-800">Tek tıkla bağla</p>
+                    <p className="text-xs text-gray-500">Facebook hesabından izin ver, numaran otomatik bağlanır. Teknik bilgi gerekmez.</p>
+                    <WhatsAppEmbeddedSignup
+                      onSuccess={(phoneNumberId, phoneNumber) => {
+                        setWaPhoneId(phoneNumberId)
+                        setWaConnected(true)
+                        setWaSaved(true)
+                        setWaError("")
+                        setTimeout(() => setWaSaved(false), 3000)
+                        void phoneNumber
+                      }}
+                      onError={(msg) => setWaError(msg)}
                     />
-                    <p className="text-xs text-[var(--muted)]">
-                      Found in Meta for Developers → Your App → WhatsApp → API Setup → Access Token
-                    </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Phone Number ID</Label>
-                    <Input
-                      placeholder="e.g. 1050059124863181"
-                      value={waPhoneId}
-                      onChange={e => setWaPhoneId(e.target.value)}
-                    />
-                    <p className="text-xs text-[var(--muted)]">
-                      Found on the same API Setup page under "Phone Number ID"
-                    </p>
-                  </div>
+
+                  {/* Manual fallback */}
+                  <button
+                    className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                    onClick={() => setShowManual(v => !v)}
+                  >
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showManual ? "rotate-180" : ""}`} />
+                    Manuel kurulum (gelişmiş)
+                  </button>
+
+                  {showManual && (
+                    <div className="space-y-3 pt-1">
+                      <div className="space-y-1.5">
+                        <Label>Meta Access Token</Label>
+                        <Input
+                          type="password"
+                          placeholder="Meta Developer Portal → API Setup → Access Token"
+                          value={waToken}
+                          onChange={e => setWaToken(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Phone Number ID</Label>
+                        <Input
+                          placeholder="örn. 1050059124863181"
+                          value={waPhoneId}
+                          onChange={e => setWaPhoneId(e.target.value)}
+                        />
+                      </div>
+                      <Button onClick={saveWhatsApp} disabled={waSaving} style={{ background: ac }}>
+                        {waSaving ? "Kaydediliyor..." : waSaved ? "Kaydedildi!" : waConnected ? "Güncelle" : "Kaydet"}
+                      </Button>
+                    </div>
+                  )}
+
                   {waError && <p className="text-xs text-red-500">{waError}</p>}
-                  <Button onClick={saveWhatsApp} disabled={waSaving} style={{ background: ac }}>
-                    {waSaving ? "Saving..." : waSaved ? "Saved!" : waConnected ? "Update Credentials" : "Connect WhatsApp"}
-                  </Button>
                 </CardContent>
               </Card>
 
