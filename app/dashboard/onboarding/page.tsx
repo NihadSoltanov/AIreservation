@@ -27,14 +27,19 @@ export default function OnboardingPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("organization_id, organizations(id, vertical)")
+        .select("organization_id")
         .eq("id", user.id)
         .single()
 
-      const org = (profile as any)?.organizations
-      if (org) {
-        setOrgId(org.id)
-        setVerticalKey(org.vertical as VerticalKey)
+      const orgIdVal = profile?.organization_id
+      if (orgIdVal) {
+        setOrgId(orgIdVal)
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("vertical")
+          .eq("id", orgIdVal)
+          .single()
+        if (orgData?.vertical) setVerticalKey(orgData.vertical as VerticalKey)
       }
       setLoading(false)
     }
@@ -59,7 +64,10 @@ export default function OnboardingPage() {
 
   const handleNext = async () => {
     if (isLast) {
-      if (!orgId) return
+      if (!orgId) {
+        console.error("[onboarding] orgId is null, cannot complete setup")
+        return
+      }
       setSaving(true)
       const supabase = createClient()
 
