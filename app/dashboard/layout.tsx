@@ -1,13 +1,18 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import DashboardSidebar from "@/components/dashboard/Sidebar"
 import DashboardTopbar from "@/components/dashboard/Topbar"
-import { MOCK_ORG } from "@/lib/mock-data"
+import { getSessionData } from "@/lib/data/session"
 import { getVertical } from "@/lib/verticals/registry"
 
 export const metadata: Metadata = { title: "Dashboard" }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const vertical = getVertical(MOCK_ORG.vertical)
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { user, profile, org } = await getSessionData()
+
+  if (!user) redirect("/login")
+
+  const vertical = getVertical(org?.vertical ?? "custom")
 
   return (
     <div
@@ -17,9 +22,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         "--vertical-accent-glow": vertical.accentGlow,
       } as React.CSSProperties}
     >
-      <DashboardSidebar />
+      <DashboardSidebar org={org} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <DashboardTopbar />
+        <DashboardTopbar org={org} user={profile} />
         <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
           {children}
         </main>

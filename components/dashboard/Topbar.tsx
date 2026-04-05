@@ -4,12 +4,18 @@ import { Bell, Search } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { MOCK_ORG } from "@/lib/mock-data"
 import { getVertical } from "@/lib/verticals/registry"
 import { initials } from "@/lib/utils"
+import type { Organization, Profile } from "@/lib/types"
 
-export default function DashboardTopbar() {
-  const vertical = getVertical(MOCK_ORG.vertical)
+export default function DashboardTopbar({
+  org,
+  user,
+}: {
+  org: Organization | null
+  user: Profile | null
+}) {
+  const vertical = getVertical(org?.vertical ?? "custom")
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-6">
@@ -40,7 +46,7 @@ export default function DashboardTopbar() {
         {/* User avatar */}
         <Avatar className="h-8 w-8 cursor-pointer">
           <AvatarFallback style={{ background: vertical.accentColor + "20", color: vertical.accentColor, fontSize: "11px" }}>
-            {initials("John Doe")}
+            {initials(user?.full_name ?? user?.email ?? "U")}
           </AvatarFallback>
         </Avatar>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Eye, EyeOff, Loader2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,13 +11,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { getAllVerticals } from "@/lib/verticals/registry"
 import type { VerticalKey } from "@/lib/verticals/types"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 export default function SignupPage() {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [selectedVertical, setSelectedVertical] = useState<VerticalKey | null>(null)
   const [form, setForm] = useState({ name: "", email: "", password: "", orgName: "" })
+  const [error, setError] = useState("")
   const verticals = getAllVerticals()
 
   function update(key: string, val: string) {
@@ -26,11 +30,56 @@ export default function SignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (step === 1) { setStep(2); return }
+
+    if (!selectedVertical) {
+      setError("Please select your industry.")
+      return
+    }
+
     setLoading(true)
-    // TODO: replace with Supabase signUp + org creation
-    await new Promise((r) => setTimeout(r, 1200))
-    setLoading(false)
-    window.location.href = "/dashboard/onboarding"
+    setError("")
+
+    const supabase = createClient()
+    const { data, error: authErr } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+    })
+
+    if (authErr) {
+      setError(authErr.message)
+      setLoading(false)
+      return
+    }
+
+    const user = data.user
+    if (!user) {
+      setError("Signup failed. Please try again.")
+      setLoading(false)
+      return
+    }
+
+    // Create profile + org + defaults
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        email: form.email,
+        fullName: form.name,
+        orgName: form.orgName,
+        vertical: selectedVertical,
+      }),
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? "Registration failed. Please try again.")
+      setLoading(false)
+      return
+    }
+
+    router.push("/dashboard/onboarding")
+    router.refresh()
   }
 
   return (
@@ -54,6 +103,11 @@ export default function SignupPage() {
 
       <CardContent className="pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
           {step === 1 && (
             <>
               <div className="grid grid-cols-2 gap-4">

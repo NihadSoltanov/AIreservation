@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
@@ -20,8 +21,9 @@ import {
 import { cn, initials } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { MOCK_ORG } from "@/lib/mock-data"
 import { getVertical } from "@/lib/verticals/registry"
+import { createClient } from "@/lib/supabase/client"
+import type { Organization } from "@/lib/types"
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
@@ -37,12 +39,12 @@ const BOTTOM_ITEMS = [
   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
 ]
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ org }: { org: Organization | null }) {
+  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  const vertical = getVertical(MOCK_ORG.vertical)
+  const vertical = getVertical(org?.vertical ?? "custom")
 
-  // Replace dynamic label
   const navWithLabels = NAV_ITEMS.map((item) =>
     item.label === "catalog"
       ? { ...item, label: vertical.terminology.entities }
@@ -51,6 +53,13 @@ export default function DashboardSidebar() {
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <aside
@@ -85,12 +94,12 @@ export default function DashboardSidebar() {
           >
             <Avatar className="h-7 w-7 shrink-0">
               <AvatarFallback style={{ background: vertical.accentColor + "20", color: vertical.accentColor }}>
-                {initials(MOCK_ORG.name)}
+                {initials(org?.name ?? "A")}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-[var(--foreground)] truncate">{MOCK_ORG.name}</div>
-              <div className="text-[10px] text-[var(--muted)] capitalize">{MOCK_ORG.plan} plan</div>
+              <div className="text-xs font-semibold text-[var(--foreground)] truncate">{org?.name ?? "AutoReserv"}</div>
+              <div className="text-[10px] text-[var(--muted)] capitalize">{org?.plan ?? "free"} plan</div>
             </div>
           </div>
         </div>
@@ -143,7 +152,7 @@ export default function DashboardSidebar() {
           )
         })}
         <button
-          onClick={() => {/* TODO: logout */}}
+          onClick={handleLogout}
           className={cn(
             "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--muted)] hover:text-red-400 hover:bg-red-500/10 transition-all duration-200",
             collapsed ? "justify-center" : ""
