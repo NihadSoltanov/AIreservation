@@ -44,6 +44,7 @@ export default function SettingsEditor({
   // WhatsApp connection state
   const [waToken, setWaToken] = useState("")
   const [waPhoneId, setWaPhoneId] = useState(org?.whatsapp_phone_number_id ?? "")
+  const [waDisplayPhone, setWaDisplayPhone] = useState(org?.whatsapp_number ?? "")
   const [waConnected, setWaConnected] = useState(!!org?.whatsapp_phone_number_id)
   const [waSaving, setWaSaving] = useState(false)
   const [waSaved, setWaSaved] = useState(false)
@@ -60,6 +61,8 @@ export default function SettingsEditor({
 
     if (waSuccessParam === "1") {
       if (phoneParam) setWaPhoneId(phoneParam)
+      const displayParam = params.get("display")
+      if (displayParam) setWaDisplayPhone(decodeURIComponent(displayParam))
       setWaConnected(true)
       setWaSaved(true)
       setActiveSection("channels")
@@ -89,6 +92,7 @@ export default function SettingsEditor({
       if (!res.ok) throw new Error("Disconnect failed")
       setWaConnected(false)
       setWaPhoneId("")
+      setWaDisplayPhone("")
       setWaToken("")
     } catch {
       setWaError("Bağlantı kesilemedi. Lütfen tekrar deneyin.")
@@ -222,7 +226,7 @@ export default function SettingsEditor({
                     <div className="flex items-center justify-between gap-2 p-3 rounded-lg text-sm" style={{ background: ac + "12", color: ac }}>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">✓ Bağlandı:</span>
-                        <span className="font-mono">{waPhoneId}</span>
+                        <span className="font-mono">{waDisplayPhone || waPhoneId}</span>
                       </div>
                       <button
                         onClick={disconnectWhatsApp}
@@ -241,6 +245,7 @@ export default function SettingsEditor({
                     <WhatsAppEmbeddedSignup
                       onSuccess={(phoneNumberId, phoneNumber) => {
                         setWaPhoneId(phoneNumberId)
+                        setWaDisplayPhone(phoneNumber)
                         setWaConnected(true)
                         setWaSaved(true)
                         setWaError("")

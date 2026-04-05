@@ -123,6 +123,7 @@ export async function GET(req: NextRequest) {
 
   const successParams = new URLSearchParams({ wa_success: "1" })
   if (phoneNumberId) successParams.set("phone", phoneNumberId)
+  if (displayPhone) successParams.set("display", encodeURIComponent(displayPhone))
 
   return NextResponse.redirect(new URL(`/dashboard/settings?${successParams}`, origin))
 }
