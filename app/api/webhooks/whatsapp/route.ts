@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 
 // Meta WhatsApp Cloud API webhook handler
 export async function GET(req: NextRequest) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "ignored" })
     }
 
-    const supabase = await createClient()
+const supabase = createServiceClient()
 
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
@@ -42,73 +42,112 @@ export async function POST(req: NextRequest) {
           const text = message.text?.body ?? ""
           const waId = message.id
 
-          // Find or create conversation
-          const { data: conv } = await supabase
+          // Find org by WhatsApp phone number ID
+          const { data: org } = await supabase
+            .from("organizations")
+            .select("id")
+            .eq("whatsapp_phone_number_id", phoneNumberId)
+            .single()
+
+          if (!org) continue // No org configured for this phone number
+
+          // Find or create open conversation for this contact
+          let convId: string
+          let orgId: string = org.id
+
+          const { data: existing } = await supabase
             .from("conversations")
             .select("id, organization_id")
             .eq("contact_phone", fromPhone)
             .eq("channel", "whatsapp")
             .eq("status", "open")
+            .eq("organization_id", orgId)
             .single()
 
-          if (conv) {
-            // Save incoming message
-            await supabase.from("messages").insert({
-              conversation_id: conv.id,
-              organization_id: conv.organization_id,
-              role: "user",
-              content: text,
-              external_id: waId,
-            })
+          if (existing) {
+            convId = existing.id
+          } else {
+            // Auto-create lead + conversation for new contact
+            const { data: lead } = await supabase
+              .from("leads")
+              .insert({
+                organization_id: orgId,
+                name: fromPhone,
+                phone: fromPhone,
+                source: "whatsapp",
+                status: "new",
+              })
+              .select("id")
+              .single()
 
-            // Call AI to generate response (non-streaming for webhooks)
-            const aiRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/chat`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                messages: [{ role: "user", content: text }],
-                organizationId: conv.organization_id,
-                conversationId: conv.id,
-              }),
-            })
+            const { data: newConv } = await supabase
+              .from("conversations")
+              .insert({
+                organization_id: orgId,
+                lead_id: lead?.id ?? null,
+                channel: "whatsapp",
+                status: "open",
+                contact_phone: fromPhone,
+              })
+              .select("id")
+              .single()
 
-            if (aiRes.ok) {
-              const reader = aiRes.body?.getReader()
-              let aiText = ""
-              if (reader) {
-                const decoder = new TextDecoder()
-                let done = false
-                while (!done) {
-                  const { value: chunk, done: d } = await reader.read()
-                  done = d
-                  if (chunk) {
-                    const text = decoder.decode(chunk)
-                    // Parse SSE lines
-                    for (const line of text.split("\n")) {
-                      if (line.startsWith("data: ") && line !== "data: [DONE]") {
-                        try {
-                          const data = JSON.parse(line.slice(6))
-                          const delta = data.choices?.[0]?.delta?.content
-                          if (delta) aiText += delta
-                        } catch {}
-                      }
+            if (!newConv) continue
+            convId = newConv.id
+          }
+
+          // Save incoming message
+          await supabase.from("messages").insert({
+            conversation_id: convId,
+            organization_id: orgId,
+            role: "user",
+            content: text,
+            external_id: waId,
+          })
+
+          // Call AI to generate response (non-streaming for webhooks)
+          const aiRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: [{ role: "user", content: text }],
+              organizationId: orgId,
+              conversationId: convId,
+            }),
+          })
+
+          if (aiRes.ok) {
+            const reader = aiRes.body?.getReader()
+            let aiText = ""
+            if (reader) {
+              const decoder = new TextDecoder()
+              let done = false
+              while (!done) {
+                const { value: chunk, done: d } = await reader.read()
+                done = d
+                if (chunk) {
+                  const raw = decoder.decode(chunk)
+                  for (const line of raw.split("\n")) {
+                    if (line.startsWith("data: ") && line !== "data: [DONE]") {
+                      try {
+                        const data = JSON.parse(line.slice(6))
+                        const delta = data.choices?.[0]?.delta?.content
+                        if (delta) aiText += delta
+                      } catch {}
                     }
                   }
                 }
               }
+            }
 
-              if (aiText) {
-                // Save AI response
-                await supabase.from("messages").insert({
-                  conversation_id: conv.id,
-                  organization_id: conv.organization_id,
-                  role: "assistant",
-                  content: aiText,
-                })
-
-                // Send reply via WhatsApp API
-                await sendWhatsAppMessage(fromPhone, aiText, phoneNumberId)
-              }
+            if (aiText) {
+              await supabase.from("messages").insert({
+                conversation_id: convId,
+                organization_id: orgId,
+                role: "assistant",
+                content: aiText,
+              })
+              await sendWhatsAppMessage(fromPhone, aiText, phoneNumberId)
             }
           }
         }
