@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "git add -A && git commit -m \"update\" && git push",
+    "setup:stripe": "node scripts/setup-stripe.mjs",
+    "setup:vercel-env": "node scripts/setup-vercel-env.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
