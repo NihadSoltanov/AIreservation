@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
+import { chat, buildSystemPrompt } from "@/lib/ai/provider"
 
 // Meta WhatsApp Cloud API webhook handler
 export async function GET(req: NextRequest) {
@@ -105,42 +106,29 @@ const supabase = createServiceClient()
             external_id: waId,
           })
 
-          // Call AI to generate response (non-streaming for webhooks)
-          const aiRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [{ role: "user", content: text }],
-              organizationId: orgId,
-              conversationId: convId,
-            }),
+          // Build system prompt from assistant config
+          const { data: assistantConfig } = await supabase
+            .from("assistant_configs")
+            .select("*, organizations(name, vertical)")
+            .eq("organization_id", orgId)
+            .single()
+
+          const org2 = assistantConfig?.organizations as { name: string; vertical: string } | null
+          const systemPrompt = buildSystemPrompt({
+            agentName: assistantConfig?.name ?? "Assistant",
+            orgName: org2?.name ?? "AutoReserv",
+            tone: assistantConfig?.tone ?? "professional",
+            language: assistantConfig?.language ?? "en",
+            customInstructions: assistantConfig?.system_prompt ?? undefined,
           })
 
-          if (aiRes.ok) {
-            const reader = aiRes.body?.getReader()
-            let aiText = ""
-            if (reader) {
-              const decoder = new TextDecoder()
-              let done = false
-              while (!done) {
-                const { value: chunk, done: d } = await reader.read()
-                done = d
-                if (chunk) {
-                  const raw = decoder.decode(chunk)
-                  for (const line of raw.split("\n")) {
-                    if (line.startsWith("data: ") && line !== "data: [DONE]") {
-                      try {
-                        const data = JSON.parse(line.slice(6))
-                        const delta = data.choices?.[0]?.delta?.content
-                        if (delta) aiText += delta
-                      } catch {}
-                    }
-                  }
-                }
-              }
-            }
+          // Call AI directly (no internal HTTP hop)
+          const aiText = await chat([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: text },
+          ])
 
-            if (aiText) {
+          if (aiText) {
               await supabase.from("messages").insert({
                 conversation_id: convId,
                 organization_id: orgId,
@@ -149,7 +137,6 @@ const supabase = createServiceClient()
               })
               await sendWhatsAppMessage(fromPhone, aiText, phoneNumberId)
             }
-          }
         }
       }
     }

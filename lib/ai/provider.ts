@@ -32,11 +32,10 @@ async function* streamNvidiaNIM(
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: 16384,
+        max_tokens: 512,
         temperature: 0.60,
         top_p: 0.95,
         stream: true,
-        chat_template_kwargs: { enable_thinking: true },
       }),
     }
   )
