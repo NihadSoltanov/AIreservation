@@ -16,6 +16,7 @@ export interface Organization {
   logo_url?: string
   phone?: string
   whatsapp_number?: string
+  whatsapp_phone_number_id?: string
   address?: string
   website?: string
   timezone: string

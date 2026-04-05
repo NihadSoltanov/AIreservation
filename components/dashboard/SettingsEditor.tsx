@@ -40,6 +40,39 @@ export default function SettingsEditor({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  // WhatsApp connection state
+  const [waToken, setWaToken] = useState("")
+  const [waPhoneId, setWaPhoneId] = useState(org?.whatsapp_phone_number_id ?? "")
+  const [waConnected, setWaConnected] = useState(!!org?.whatsapp_phone_number_id)
+  const [waSaving, setWaSaving] = useState(false)
+  const [waSaved, setWaSaved] = useState(false)
+  const [waError, setWaError] = useState("")
+
+  const saveWhatsApp = async () => {
+    if (!waToken || !waPhoneId) {
+      setWaError("Both Token and Phone Number ID are required.")
+      return
+    }
+    setWaSaving(true)
+    setWaError("")
+    try {
+      const res = await fetch("/api/settings/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: waToken, phoneNumberId: waPhoneId }),
+      })
+      if (!res.ok) throw new Error("Save failed")
+      setWaConnected(true)
+      setWaSaved(true)
+      setWaToken("")
+      setTimeout(() => setWaSaved(false), 3000)
+    } catch {
+      setWaError("Failed to save. Please try again.")
+    } finally {
+      setWaSaving(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!org) return
     setSaving(true)
@@ -121,33 +154,82 @@ export default function SettingsEditor({
           )}
 
           {activeSection === "channels" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Communication Channels</CardTitle>
-                <CardDescription>Enable and configure where your AI responds</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {[
-                  { name: "WhatsApp", status: org?.whatsapp_number ? "connected" : "disconnected", desc: org?.whatsapp_number ? `Connected: ${org.whatsapp_number}` : "Connect via Meta Business API" },
-                  { name: "Website Chat Widget", status: "connected", desc: "Embed on your website" },
-                  { name: "Instagram DM", status: "disconnected", desc: "Coming soon" },
-                  { name: "Facebook Messenger", status: "disconnected", desc: "Connect your Facebook page" },
-                ].map(channel => (
-                  <div key={channel.name} className="flex items-center justify-between py-2">
+            <div className="space-y-4">
+              {/* WhatsApp connect form */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-[var(--foreground)]">{channel.name}</p>
-                      <p className="text-xs text-[var(--muted)]">{channel.desc}</p>
+                      <CardTitle className="text-base">WhatsApp Business</CardTitle>
+                      <CardDescription>Connect your Meta Business number so your AI can respond to WhatsApp messages</CardDescription>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <Badge variant={waConnected ? "success" : "secondary"}>
+                      {waConnected ? "Connected" : "Disconnected"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {waConnected && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg text-sm" style={{ background: ac + "12", color: ac }}>
+                      <span className="font-medium">✓ Phone Number ID:</span>
+                      <span className="font-mono">{waPhoneId}</span>
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label>Meta Access Token</Label>
+                    <Input
+                      type="password"
+                      placeholder="Paste your permanent token from Meta Developer Portal"
+                      value={waToken}
+                      onChange={e => setWaToken(e.target.value)}
+                    />
+                    <p className="text-xs text-[var(--muted)]">
+                      Found in Meta for Developers → Your App → WhatsApp → API Setup → Access Token
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Phone Number ID</Label>
+                    <Input
+                      placeholder="e.g. 1050059124863181"
+                      value={waPhoneId}
+                      onChange={e => setWaPhoneId(e.target.value)}
+                    />
+                    <p className="text-xs text-[var(--muted)]">
+                      Found on the same API Setup page under "Phone Number ID"
+                    </p>
+                  </div>
+                  {waError && <p className="text-xs text-red-500">{waError}</p>}
+                  <Button onClick={saveWhatsApp} disabled={waSaving} style={{ background: ac }}>
+                    {waSaving ? "Saving..." : waSaved ? "Saved!" : waConnected ? "Update Credentials" : "Connect WhatsApp"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Other channels (read-only status) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Other Channels</CardTitle>
+                  <CardDescription>Additional channels coming soon</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[
+                    { name: "Website Chat Widget", status: "connected", desc: "Embed on your website" },
+                    { name: "Instagram DM", status: "disconnected", desc: "Coming soon" },
+                    { name: "Facebook Messenger", status: "disconnected", desc: "Coming soon" },
+                  ].map(channel => (
+                    <div key={channel.name} className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--foreground)]">{channel.name}</p>
+                        <p className="text-xs text-[var(--muted)]">{channel.desc}</p>
+                      </div>
                       <Badge variant={channel.status === "connected" ? "success" : "secondary"} className="capitalize">
                         {channel.status}
                       </Badge>
-                      <Switch defaultChecked={channel.status === "connected"} />
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === "notifications" && (
