@@ -35,6 +35,7 @@ export default function WhatsAppEmbeddedSignup({ onError, disabled }: Props) {
     url.searchParams.set("config_id", configId)
     url.searchParams.set("response_type", "code")
     url.searchParams.set("override_default_response_type", "true")
+    url.searchParams.set("scope", "whatsapp_business_management,whatsapp_business_messaging,business_management")
 
     window.location.href = url.toString()
   }

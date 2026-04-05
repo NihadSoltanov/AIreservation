@@ -47,35 +47,60 @@ export async function GET(req: NextRequest) {
   let displayPhone = ""
 
   try {
-    // Get businesses the user manages
-    const bizRes = await fetch(
-      `https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}`
+    // Approach 1: Direct user WABA access (works with whatsapp_business_management scope)
+    const directWabaRes = await fetch(
+      `https://graph.facebook.com/v18.0/me/whatsapp_business_accounts?access_token=${accessToken}`
     )
-    const bizData = (await bizRes.json()) as { data?: Array<{ id: string }> }
-    const businesses = bizData.data ?? []
+    const directWabaData = (await directWabaRes.json()) as { data?: Array<{ id: string }> }
+    const directWabas = directWabaData.data ?? []
+    console.log("[meta/callback] direct WABAs:", JSON.stringify(directWabaData))
 
-    for (const biz of businesses) {
+    for (const waba of directWabas) {
       if (phoneNumberId) break
-
-      const wabaRes = await fetch(
-        `https://graph.facebook.com/v18.0/${biz.id}/whatsapp_business_accounts?access_token=${accessToken}`
+      const phoneRes = await fetch(
+        `https://graph.facebook.com/v18.0/${waba.id}/phone_numbers?fields=id,display_phone_number&access_token=${accessToken}`
       )
-      const wabaData = (await wabaRes.json()) as { data?: Array<{ id: string }> }
-      const wabas = wabaData.data ?? []
+      const phoneData = (await phoneRes.json()) as {
+        data?: Array<{ id: string; display_phone_number: string }>
+      }
+      console.log("[meta/callback] phones for waba", waba.id, ":", JSON.stringify(phoneData))
+      const phones = phoneData.data ?? []
+      if (phones.length > 0) {
+        phoneNumberId = phones[0].id
+        displayPhone = phones[0].display_phone_number
+      }
+    }
 
-      for (const waba of wabas) {
+    // Approach 2: via me/businesses if approach 1 returned nothing
+    if (!phoneNumberId) {
+      const bizRes = await fetch(
+        `https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}`
+      )
+      const bizData = (await bizRes.json()) as { data?: Array<{ id: string }> }
+      console.log("[meta/callback] businesses:", JSON.stringify(bizData))
+      const businesses = bizData.data ?? []
+
+      for (const biz of businesses) {
         if (phoneNumberId) break
-
-        const phoneRes = await fetch(
-          `https://graph.facebook.com/v18.0/${waba.id}/phone_numbers?fields=id,display_phone_number&access_token=${accessToken}`
+        const wabaRes = await fetch(
+          `https://graph.facebook.com/v18.0/${biz.id}/whatsapp_business_accounts?access_token=${accessToken}`
         )
-        const phoneData = (await phoneRes.json()) as {
-          data?: Array<{ id: string; display_phone_number: string }>
-        }
-        const phones = phoneData.data ?? []
-        if (phones.length > 0) {
-          phoneNumberId = phones[0].id
-          displayPhone = phones[0].display_phone_number
+        const wabaData = (await wabaRes.json()) as { data?: Array<{ id: string }> }
+        const wabas = wabaData.data ?? []
+
+        for (const waba of wabas) {
+          if (phoneNumberId) break
+          const phoneRes = await fetch(
+            `https://graph.facebook.com/v18.0/${waba.id}/phone_numbers?fields=id,display_phone_number&access_token=${accessToken}`
+          )
+          const phoneData = (await phoneRes.json()) as {
+            data?: Array<{ id: string; display_phone_number: string }>
+          }
+          const phones = phoneData.data ?? []
+          if (phones.length > 0) {
+            phoneNumberId = phones[0].id
+            displayPhone = phones[0].display_phone_number
+          }
         }
       }
     }
@@ -83,6 +108,7 @@ export async function GET(req: NextRequest) {
     console.error("[meta/callback] phone discovery error:", err)
     // Continue — we still save the token even if phone discovery fails
   }
+  console.log("[meta/callback] final phoneNumberId:", phoneNumberId, "displayPhone:", displayPhone)
 
   // 3. Save token to the org
   const supabase = await createClient()
