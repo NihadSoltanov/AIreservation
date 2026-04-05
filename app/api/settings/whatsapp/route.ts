@@ -57,3 +57,45 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile?.organization_id) {
+    return NextResponse.json({ error: "No organization found" }, { status: 404 })
+  }
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("config")
+    .eq("id", profile.organization_id)
+    .single()
+
+  const existingConfig = (org?.config ?? {}) as Record<string, unknown>
+  delete existingConfig.meta_token
+
+  await supabase
+    .from("organizations")
+    .update({
+      whatsapp_phone_number_id: null,
+      whatsapp_number: null,
+      config: existingConfig,
+    })
+    .eq("id", profile.organization_id)
+
+  return NextResponse.json({ ok: true })
+}

@@ -49,6 +49,7 @@ export default function SettingsEditor({
   const [waSaved, setWaSaved] = useState(false)
   const [waError, setWaError] = useState("")
   const [showManual, setShowManual] = useState(false)
+  const [waDisconnecting, setWaDisconnecting] = useState(false)
 
   // Read OAuth callback result from URL params (set by /api/meta/callback redirect)
   useEffect(() => {
@@ -77,6 +78,24 @@ export default function SettingsEditor({
       window.history.replaceState({}, "", "/dashboard/settings")
     }
   }, [])
+
+  const disconnectWhatsApp = async () => {
+    setWaDisconnecting(true)
+    setWaError("")
+    try {
+      const res = await fetch("/api/settings/whatsapp", {
+        method: "DELETE",
+      })
+      if (!res.ok) throw new Error("Disconnect failed")
+      setWaConnected(false)
+      setWaPhoneId("")
+      setWaToken("")
+    } catch {
+      setWaError("Bağlantı kesilemedi. Lütfen tekrar deneyin.")
+    } finally {
+      setWaDisconnecting(false)
+    }
+  }
 
   const saveWhatsApp = async () => {
     if (!waToken || !waPhoneId) {
@@ -200,9 +219,18 @@ export default function SettingsEditor({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {waConnected && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg text-sm" style={{ background: ac + "12", color: ac }}>
-                      <span className="font-medium">✓ Bağlandı:</span>
-                      <span className="font-mono">{waPhoneId}</span>
+                    <div className="flex items-center justify-between gap-2 p-3 rounded-lg text-sm" style={{ background: ac + "12", color: ac }}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">✓ Bağlandı:</span>
+                        <span className="font-mono">{waPhoneId}</span>
+                      </div>
+                      <button
+                        onClick={disconnectWhatsApp}
+                        disabled={waDisconnecting}
+                        className="text-xs text-red-500 hover:text-red-600 font-medium transition-colors disabled:opacity-50"
+                      >
+                        {waDisconnecting ? "Kesiliyor..." : "Bağlantıyı Kes"}
+                      </button>
                     </div>
                   )}
 
